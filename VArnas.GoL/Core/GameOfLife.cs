@@ -1,4 +1,6 @@
 using System.Data;
+using System.Numerics;
+using VArnas.GoL.Extensions;
 
 namespace VArnas.GoL.Core;
 
@@ -7,31 +9,41 @@ public class GameOfLife
     private readonly bool[,] _grid;
     private readonly int[,] _neighbours;
     
-    private int Height => _grid.GetLength(0);
-    private int Width => _grid.GetLength(1);
+    public int Height => _grid.GetLength(0);
+    public int Width => _grid.GetLength(1);
     
     public GameOfLife(bool[,] grid)
     {
         _grid = grid;
         _neighbours = new int[Height, Width];
     }
-
-    private void Iterate(Action<int, int> func)
-    {
-        for (var y = 0; y < Height; ++y)
-            for (var x = 0; x < Width; ++x)
-                func(y, x);
-    }
     
     public void Update()
     {
-        Iterate((y, x) => _neighbours[y, x] = CountNeighbours(x, y)); 
-        Iterate((y, x) => _grid[y, x] = _grid[y, x] switch
+        _grid.Iterate((x, y) => _neighbours[y, x] = CountNeighbours(x, y)); 
+        _grid.Iterate((x, y) => _grid[y, x] = _grid[y, x] switch
         {
             true when _neighbours[y, x] is < 2 or > 3 => false,
             false when _neighbours[y, x] is 3 => true,
             _ => _grid[y, x]
         });
+        Thread.Sleep(75);
+    }
+
+    public bool Alive(int x, int y) => _grid[y, x];
+    
+    public BigInteger GetState()
+    {
+        var state = new BigInteger(0);
+        
+        _grid.Iterate((x, y) =>
+        {
+            if (!_grid[y, x]) return;
+            var index = x + y * Width;
+            state += BigInteger.Pow(2, index);
+        });
+        
+        return state;
     }
         
     private int CountNeighbours(int x, int y) => new[]

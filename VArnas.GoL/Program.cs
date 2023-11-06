@@ -1,144 +1,74 @@
 ﻿using System.Numerics;
 using Raylib_cs;
+using VArnas.GoL.Core;
 
 namespace VArnas.GoL;
 
-public static class Program
+public class Program
 {
-    private static void Update(bool[,] grid, int [,] neighbourMask)
-    {
-        var h = grid.GetLength(0);
-        var w = grid.GetLength(1);
-        for (var y = 0; y < h; ++y)
-            for (var x = 0; x < w; ++x)
-                neighbourMask[y, x] = CountNeighbours(grid, x, y);
+    private const int TileSize = 32;
 
-        for (var y = 0; y < h; ++y)
-        {
-            for (var x = 0; x < w; ++x)
-            {
-                var n = neighbourMask[y, x];
-                if (grid[y, x])
-                {
-                    if (n is < 2 or > 3)
-                        grid[y, x] = false;
-                }
-                else
-                {
-                    if (n is 3)
-                        grid[y, x] = true;
-                }
-            }
-        }
+    private int _frame;
+    private bool _update;
+    private GameOfLife Game { get; }
+    private readonly Dictionary<BigInteger, int> _stateCache;
+    
+    private Program()
+    {
+        _frame = 0;
+        var initial = Helpers.LoadInitialState("start.txt");
+        Game = new GameOfLife(initial);
+        _stateCache = new Dictionary<BigInteger, int>();
+        _update = true;
+        
+        Raylib.InitWindow(
+            TileSize * Game.Width, 
+            TileSize * Game.Height, 
+            "GoL");
     }
 
-    private static BigInteger GetGridState(bool[,] grid)
+    private void Update()
     {
-        var h = grid.GetLength(0);
-        var w = grid.GetLength(1);
-
-        var state = new BigInteger(0);
+        if (!_update) return;
         
-        for (var y = 0; y < h; ++y)
+        Game.Update();
+
+        var state = Game.GetState();
+        if (_stateCache.TryGetValue(state, out var value))
         {
-            for (var x = 0; x < w; ++x)
+            Console.WriteLine($"Cycle detected (start frame: {value}, end frame: {_frame})");
+            _update = false;
+        }
+        else _stateCache.Add(state, _frame);
+        _frame++;
+    }
+
+    private void Draw()
+    {
+        for (var y = 0; y < Game.Height; ++y)
+        {
+            for (var x = 0; x < Game.Width; ++x)
             {
-                if (!grid[y, x]) continue;
-                var index = x + y * w;
-                state += BigInteger.Pow(2, index);
+                Raylib.DrawRectangle(
+                    TileSize * x, 
+                    TileSize * y,
+                    TileSize,
+                    TileSize,
+                    Game.Alive(x, y) ? Color.WHITE : Color.BLACK);                    
             }
         }
-
-        return state;
     }
     
-    private static int CountNeighbours(bool[,] grid, int x, int y)
-    {
-        var h = grid.GetLength(0);
-        var w = grid.GetLength(1);
-        return new[]
-            {
-                (x - 1, y - 1), (x, y - 1), (x + 1, y - 1),
-                (x - 1, y), (x + 1, y),
-                (x - 1, y + 1), (x, y + 1), (x + 1, y + 1),
-            }
-            .Count(p => grid[(h + p.Item2) % h, (w + p.Item1) % w]);
-    }
-
     public static void Main()
     {
-        const int tileSize = 32;
-        
-        var input = File.ReadAllText("start.txt");
-
-        var lines = input
-            .Split('\r', '\n')
-            .Where(l => l != string.Empty)
-            .ToArray();
- 
-        var gridWidth = lines.First().Length;
-        var gridHeight = lines.Length;
-        var grid = new bool[gridWidth, gridHeight];
-        var neighbourMask = new int[gridWidth, gridHeight];
-        var frame = 0;
-
-        for (var y = 0; y < grid.GetLength(0); ++y)
-        {
-            Console.WriteLine(lines[y]);
-            
-            if (lines[y].Length != gridWidth)
-                throw new Exception("Grid must not be jagged");
-            
-            for (var x = 0; x < grid.GetLength(1); ++x)
-                grid[y, x] = lines[y][x] is '#';
-        }
-
-        var stateSet = new Dictionary<BigInteger, int>();
-
-        Raylib.InitWindow(tileSize * gridWidth, tileSize * gridHeight, "GoL");
-        var update = true;
-        
+        var program = new Program();
         while (!Raylib.WindowShouldClose())
         {
-            if (update)
-            {
-                Update(grid, neighbourMask);
-
-                var state = GetGridState(grid);
-
-                if (stateSet.TryGetValue(state, out var value))
-                {
-                    Console.WriteLine($"Cycle detected (start frame: {value}, end frame: {frame})");
-                    update = false;
-                }
-                else
-                {
-                    stateSet.Add(state, frame);
-                }
-            
-                frame++;    
-            }
-            
+            program.Update();
             Raylib.BeginDrawing();
             Raylib.ClearBackground(Color.WHITE);
-
-            for (var y = 0; y < gridHeight; ++y)
-            {
-                for (var x = 0; x < gridWidth; ++x)
-                {
-                    Raylib.DrawRectangle(
-                        tileSize * x, 
-                        tileSize * y,
-                        tileSize,
-                        tileSize,
-                        grid[y, x] ? Color.WHITE : Color.BLACK);                    
-                }
-            }
-            
+            program.Draw();
             Raylib.EndDrawing();
-            
-            if(update)
-                Thread.Sleep(75);
         }
         Raylib.CloseWindow();
     }
