@@ -7,11 +7,13 @@ namespace VArnas.GoL;
 public class Program
 {
     private const int TileSize = 32;
-
-    private int _frame;
-    private bool _update;
+    private const int FrameTimeMs = 75;
+    
+    private int _frame; // Current frame
+    private bool _update; // Pause/unpause simulation
     private GameOfLife Game { get; }
     private readonly Dictionary<BigInteger, int> _stateCache;
+    private bool _cycleFound; // Look for cycles
     
     private Program()
     {
@@ -19,7 +21,9 @@ public class Program
         var initial = Helpers.LoadInitialState("start.txt");
         Game = new GameOfLife(initial);
         _stateCache = new Dictionary<BigInteger, int>();
-        _update = true;
+        _update = false;
+        
+        Raylib.SetTraceLogLevel(TraceLogLevel.LOG_ERROR);
         
         Raylib.InitWindow(
             TileSize * Game.Width, 
@@ -29,18 +33,36 @@ public class Program
 
     private void Update()
     {
+        var pos = Raylib.GetMousePosition();
+        var x = (int)pos.X / TileSize;
+        var y = (int)pos.Y / TileSize;
+
+        if (Raylib.IsMouseButtonPressed(MouseButton.MOUSE_BUTTON_LEFT))
+            Game.Set(x, y, true);
+        
+        if (Raylib.IsMouseButtonPressed(MouseButton.MOUSE_BUTTON_RIGHT))
+            Game.Set(x, y, false);
+        
+        if(Raylib.IsKeyPressed(KeyboardKey.KEY_SPACE))
+            _update = !_update;
+
         if (!_update) return;
         
         Game.Update();
-
         var state = Game.GetState();
-        if (_stateCache.TryGetValue(state, out var value))
+        
+        if (_stateCache.TryGetValue(state, out var savedFrame) && !_cycleFound)
         {
-            Console.WriteLine($"Cycle detected (start frame: {value}, end frame: {_frame})");
-            _update = false;
+            var period = _frame - savedFrame;
+            Console.WriteLine(period is 1
+                ? "State converged."
+                : $"Cycle detected (start frame: {savedFrame}, end frame: {_frame}).");
+            _cycleFound = true;
         }
-        else _stateCache.Add(state, _frame);
+        else if(!_cycleFound) _stateCache.Add(state, _frame);
         _frame++;
+        
+        Thread.Sleep(FrameTimeMs);
     }
 
     private void Draw()

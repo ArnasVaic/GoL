@@ -27,11 +27,16 @@ public class GameOfLife
             false when _neighbours[y, x] is 3 => true,
             _ => _grid[y, x]
         });
-        Thread.Sleep(75);
     }
 
     public bool Alive(int x, int y) => _grid[y, x];
-    
+
+    public void Set(int x, int y, bool alive)
+    {
+        if(x >= 0 && x < Width && y >= 0 && y < Height)
+            _grid[y, x] = alive;
+    }
+
     public BigInteger GetState()
     {
         var state = new BigInteger(0);

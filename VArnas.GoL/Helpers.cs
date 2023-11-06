@@ -15,7 +15,7 @@ public static class Helpers
  
         var gridWidth = lines.First().Length;
         var gridHeight = lines.Length;
-        var grid = new bool[gridWidth, gridHeight];
+        var grid = new bool[gridHeight, gridWidth];
 
         if(!lines.Select(l => l.Length).All(gridWidth.Equals))
             throw new Exception("Grid must not be jagged");
